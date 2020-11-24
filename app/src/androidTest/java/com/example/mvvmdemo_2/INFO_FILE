@@ -1,0 +1,123 @@
+1. Add the dependencies
+  implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.2.0"
+    implementation "android.arch.lifecycle:extensions:1.1.1"
+    annotationProcessor "android.arch.lifecycle:compiler:1.1.1"
+
+     implementation 'com.squareup.retrofit2:retrofit:2.5.0'
+       implementation 'com.squareup.retrofit2:converter-gson:2.5.0'
+
+ 1.1 Enable DataBinding
+
+ 2. Create a viewModel Class
+
+class AuthViewModel : ViewModel() {
+    var email : String? = null
+    var pwd : String? = null
+    fun onLoginClickButton(view : View){
+        if(email.isNullOrEmpty() || (pwd.isNullOrEmpty())){
+        }
+        // success
+    }
+ }
+ 3. Data Bindinding
+ a> add the <layout> tags as head  ... also add xmlns
+ b>  add the data tag <data>  ... also give an id to the root layout
+ c> then add variable tag which has 2 properties,    name and type
+ d> give any name for name field and give the complete path of the view model in type
+
+  <variable
+                  name="layout_viewmodel"
+                  type="com.example.mvvmdemo_2.view.AuthViewModel" />
+  e> Now on both editText fields and button add this
+
+                android:text="@={layout_viewmodel.email}"
+              android:text="@={layout_viewmodel.pwd}"
+            android:onClick="@{layout_viewmodel.onLoginClickButton}"
+
+  4. Set an Interface for connecting between the view model and view...
+  interface AuthListener {
+
+      fun onStarted()
+      fun onSuccess()
+      fun onFailure(msg : String)
+  }
+
+  5. Implement the interface on Activity and overRide the methods and add toast in that...
+   then add create obj of authlistner in ViewModel class
+         var authListener : AuthListener? = null
+
+  6. now set the listners in on click of button in view model
+
+  7. Now connect the viewModel class with the activity...
+    a> remove setContentView
+    b>     ActivityLoginBinding  -- this is auto generated based the name of the xml layout
+        val binding : ActivityLoginBinding = DataBindingUtil.setContentView(this,R.layout.activity_login)
+------------------------------------------------------------------------------------------------------
+
+8. create a network folder and the repo folder
+a> In network folder, add API client Interface to make retrofit call
+
+interface MyApiClient {
+    @FormUrlEncoded
+       @POST("login")
+       fun ApiClientuserLogin(@Field("email")  email : String,  @Field("password")  pwd : String) : Call<ResponseBody>
+
+companion object {
+     fun MyGetResponse() : MyApiClient{
+         val  myRetrofit = Retrofit.Builder()
+             .baseUrl("https://grocery-second-app.herokuapp.com/api/auth/")
+             .addConverterFactory(GsonConverterFactory.create())
+             .build()
+             .create(MyApiClient::class.java)
+         return  myRetrofit
+    }
+}
+}
+
+9. Now in repo folder, create UserRepo class from where the data is passed to the retrofit client and getting the
+resposne.
+class UserRepo {
+
+    fun userLogin(email : String, password : String) :  LiveData<String>{
+        val loginResponse = MutableLiveData<String>()
+
+        MyApiClient.MyGetResponse().ApiClientuserLogin(email,password)
+            .enqueue(object : Callback<ResponseBody>{
+                override fun onResponse(
+                    call: Call<ResponseBody>,
+                    response: Response<ResponseBody>
+                ) {
+                    if(response.isSuccessful){
+                        loginResponse.value = response.body().toString()
+                    }
+                    else {
+                        loginResponse.value = response.errorBody().toString()
+                    }
+                }
+
+                override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                    loginResponse.value = t.message
+                }
+
+            })
+
+        return loginResponse
+    }
+}
+
+10. Now catch the response in the AuthViewModel on onLoginClickButton and send it through the authSuccess Listner.
+
+
+else{
+                val myresponse = UserRepo().userLogin(email!!,pwd!!)
+                authListener?.onSuccess(myresponse)
+        }
+
+ 11.  In Login activity observer the live data
+
+ override fun onSuccess(myresponse: LiveData<String>) {
+
+         myresponse.observe(this, Observer {
+             Toast.makeText(this, " success : $it" , Toast.LENGTH_SHORT).show()
+
+         })
